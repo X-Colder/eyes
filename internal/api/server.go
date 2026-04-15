@@ -12,6 +12,7 @@ import (
 	"github.com/eyes/internal/analysis"
 	"github.com/eyes/internal/backtest"
 	"github.com/eyes/internal/config"
+	enginePkg "github.com/eyes/internal/engine"
 	"github.com/eyes/internal/feature"
 	"github.com/eyes/internal/loader"
 	"github.com/eyes/internal/model"
@@ -25,6 +26,7 @@ type Server struct {
 	feats    []model.Feature
 	ticks    []model.TickData
 	multiDay *model.MultiDayData // 多日数据
+	pipeline *enginePkg.Pipeline // 闭环流水线
 }
 
 // NewServer 创建 API 服务
@@ -45,6 +47,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/train", s.handleTrain)
 	s.mux.HandleFunc("/api/predict", s.handlePredict)
 	s.mux.HandleFunc("/api/backtest", s.handleBacktest)
+	s.mux.HandleFunc("/api/pipeline/run", s.handlePipelineRun)
+	s.mux.HandleFunc("/api/pipeline/status", s.handlePipelineStatus)
 }
 
 // Start 启动 HTTP 服务
@@ -343,4 +347,57 @@ func (s *Server) handleBacktest(w http.ResponseWriter, r *http.Request) {
 	result := engine.RunWithLabels(s.bars, labels)
 	result.Symbol = "002484"
 	writeJSON(w, result)
+}
+
+// handlePipelineRun 启动闭环流水线
+func (s *Server) handlePipelineRun(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		writeError(w, 405, "use POST")
+		return
+	}
+
+	cfg := enginePkg.PipelineConfig{
+		Symbol:       s.cfg.Pipeline.Symbol,
+		TickDir:      s.cfg.Data.TickDir,
+		OutputDir:    s.cfg.Data.OutputDir,
+		ModelDir:     s.cfg.ML.ModelDir,
+		ScriptDir:    s.cfg.ML.ScriptDir,
+		PythonPath:   s.cfg.ML.PythonPath,
+		ServiceURL:   s.cfg.ML.ServiceURL,
+		TrainRatio:   s.cfg.Pipeline.TrainRatio,
+		InitialCash:  s.cfg.Backtest.InitialCash,
+		Commission:   s.cfg.Backtest.Commission,
+		Slippage:     s.cfg.Backtest.Slippage,
+		MaxPosition:  s.cfg.Backtest.MaxPosition,
+		BarInterval:  s.cfg.Feature.BarInterval,
+		WindowSize:   s.cfg.Feature.WindowSize,
+		FutureSteps:  s.cfg.Feature.FutureSteps,
+		PriceThresh:  s.cfg.Feature.PriceThresh,
+		RetrainAfter: s.cfg.Pipeline.RetrainAfter,
+		FeatureDim:   s.cfg.Pipeline.FeatureDim,
+	}
+
+	s.pipeline = enginePkg.NewPipeline(cfg)
+
+	// 异步运行（可能耗时较长）
+	go func() {
+		result := s.pipeline.Run()
+		data, _ := json.Marshal(result)
+		log.Printf("[api] pipeline done: %s", string(data[:min(500, len(data))]))
+	}()
+
+	writeJSON(w, map[string]string{
+		"status":  "pipeline_started",
+		"symbol":  cfg.Symbol,
+		"message": "use /api/pipeline/status to check progress",
+	})
+}
+
+// handlePipelineStatus 查询流水线状态
+func (s *Server) handlePipelineStatus(w http.ResponseWriter, r *http.Request) {
+	if s.pipeline == nil {
+		writeJSON(w, map[string]string{"status": "not_started"})
+		return
+	}
+	writeJSON(w, s.pipeline.GetState())
 }

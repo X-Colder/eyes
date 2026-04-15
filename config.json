@@ -23,5 +23,11 @@
         "commission": 0.0003,
         "slippage": 0.001,
         "max_position": 10000
+    },
+    "pipeline": {
+        "symbol": "002484",
+        "train_ratio": 0.7,
+        "retrain_after": 3,
+        "feature_dim": 24
     }
 }

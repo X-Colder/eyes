@@ -12,6 +12,7 @@ type Config struct {
 	Feature  FeatureConfig  `json:"feature"`
 	ML       MLConfig       `json:"ml"`
 	Backtest BacktestConfig `json:"backtest"`
+	Pipeline PipelineConfig `json:"pipeline"`
 }
 
 type ServerConfig struct {
@@ -42,6 +43,13 @@ type BacktestConfig struct {
 	Commission  float64 `json:"commission"`   // 手续费率
 	Slippage    float64 `json:"slippage"`     // 滑点
 	MaxPosition int64   `json:"max_position"` // 最大持仓量
+}
+
+type PipelineConfig struct {
+	Symbol       string  `json:"symbol"`        // 标的代码
+	TrainRatio   float64 `json:"train_ratio"`   // 训练天数占比 (如 0.7)
+	RetrainAfter int     `json:"retrain_after"` // 每推理 N 天后再训练 (0=不再训练)
+	FeatureDim   int     `json:"feature_dim"`   // 特征维度 (24)
 }
 
 // Load 从 JSON 文件加载配置

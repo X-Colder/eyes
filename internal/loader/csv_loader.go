@@ -25,6 +25,7 @@ func LoadTickCSV(filePath string) ([]model.TickData, error) {
 	defer f.Close()
 
 	reader := csv.NewReader(f)
+	reader.FieldsPerRecord = -1 // 允许列数不一致（跳过损坏行）
 	// 读取表头
 	header, err := reader.Read()
 	if err != nil {

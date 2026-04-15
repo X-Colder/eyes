@@ -136,6 +136,75 @@ type TradeRecord struct {
 	HoldBars   int     `json:"hold_bars"` // 持仓K线数
 }
 
+// ==================== 实时交易信号系统 ====================
+
+// TradeSignal 交易信号（由实时推理引擎生成）
+type TradeSignal struct {
+	Date           string  `json:"date"`             // 交易日期
+	Time           string  `json:"time"`             // 信号时间 HH:MM:SS
+	Symbol         string  `json:"symbol"`           // 标的代码
+	Action         string  `json:"action"`           // buy / sell / hold
+	RiseProb       float64 `json:"rise_prob"`        // 上涨概率
+	FallProb       float64 `json:"fall_prob"`        // 下跌概率
+	Confidence     float64 `json:"confidence"`       // 置信度
+	CurrentPrice   float64 `json:"current_price"`    // 当前价格
+	TargetPrice    float64 `json:"target_price"`     // 目标价格
+	StopLossPrice  float64 `json:"stop_loss_price"`  // 止损价格
+	Volume         int64   `json:"volume"`           // 建议交易量
+	WinRate        float64 `json:"win_rate"`         // 预估胜率
+	OddsRatio      float64 `json:"odds_ratio"`       // 赔率（盈亏比）
+	ProfitRate     float64 `json:"profit_rate"`      // 预期利润率 (%)
+	ExpectedProfit float64 `json:"expected_profit"`  // 预期利润金额
+	HoldBars       int     `json:"hold_bars"`        // 建议持有bar数
+	HoldSeconds    int     `json:"hold_seconds"`     // 建议持有秒数
+	ExpectSellTime string  `json:"expect_sell_time"` // 预期卖出时间
+	KellyFraction  float64 `json:"kelly_fraction"`   // Kelly 最优仓位比例
+	Phase          string  `json:"phase"`            // 当前趋势阶段
+}
+
+// Position 当前持仓状态
+type Position struct {
+	Symbol     string  `json:"symbol"`
+	Side       string  `json:"side"` // long / flat
+	EntryTime  string  `json:"entry_time"`
+	EntryPrice float64 `json:"entry_price"`
+	Volume     int64   `json:"volume"`
+	AvgCost    float64 `json:"avg_cost"`
+	UnrealPnL  float64 `json:"unreal_pnl"` // 浮动盈亏
+	UnrealPct  float64 `json:"unreal_pct"` // 浮动盈亏 %
+	HoldBars   int     `json:"hold_bars"`
+}
+
+// PipelineState 闭环流水线状态
+type PipelineState struct {
+	Symbol        string        `json:"symbol"`
+	Phase         string        `json:"phase"`          // train / infer / retrain
+	TrainDays     []string      `json:"train_days"`     // 用于训练的日期
+	InferDays     []string      `json:"infer_days"`     // 用于推理的日期
+	CurrentDay    string        `json:"current_day"`    // 当前处理日期
+	ModelVersion  int           `json:"model_version"`  // 模型版本号
+	Position      Position      `json:"position"`       // 当前持仓
+	Signals       []TradeSignal `json:"signals"`        // 历史信号
+	Trades        []TradeRecord `json:"trades"`         // 已完成交易
+	CumulativePnL float64       `json:"cumulative_pnl"` // 累计盈亏
+	Cash          float64       `json:"cash"`           // 可用资金
+	TotalValue    float64       `json:"total_value"`    // 总资产
+	DailyResults  []DayResult   `json:"daily_results"`  // 每日结果汇总
+}
+
+// DayResult 单日推理+交易结果
+type DayResult struct {
+	Date        string        `json:"date"`
+	SignalCount int           `json:"signal_count"`
+	BuySignals  int           `json:"buy_signals"`
+	SellSignals int           `json:"sell_signals"`
+	TradeCount  int           `json:"trade_count"`
+	DayPnL      float64       `json:"day_pnl"`
+	DayReturn   float64       `json:"day_return"` // 当日收益率 %
+	WinRate     float64       `json:"win_rate"`
+	Trades      []TradeRecord `json:"trades"`
+}
+
 // DailyStats 日度统计汇总
 type DailyStats struct {
 	Date        time.Time `json:"date"`
