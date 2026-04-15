@@ -23,6 +23,3 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
-
-# 离线包
-pip-packages/

@@ -1,19 +1,18 @@
 #!/bin/bash
 # ============================================================
-# Eyes 量化系统 - 离线部署打包脚本
+# Eyes 量化系统 - 部署打包脚本
 #
-# 目标：在本地（有网络）打包成一个 tar.gz，
-#       传到内网 Ubuntu 22.04 GPU 服务器后即可训练，
-#       服务器只需要有 Python3 + pip + CUDA 12.1。
+# 打包 Go 二进制 + Python 代码 + 数据 + 部署脚本，
+# 传到 Ubuntu 22.04 GPU 服务器后在线安装 pip 依赖即可训练。
 #
-# 用法（本地执行）：
+# 用法：
 #   bash scripts/pack.sh
 #
 # 服务器上：
 #   tar xzf eyes-deploy.tar.gz
 #   cd eyes-deploy
-#   bash install.sh          # 安装 Python 离线包
-#   bash train.sh             # 一键训练
+#   bash install.sh          # 在线安装 Python 依赖
+#   bash train.sh            # 一键训练
 # ============================================================
 
 set -euo pipefail
@@ -24,14 +23,8 @@ PACK_DIR="${DIST_DIR}/eyes-deploy"
 GPU_OS="${GPU_OS:-linux}"
 GPU_ARCH="${GPU_ARCH:-amd64}"
 
-# 远程 Python 版本（可通过环境变量覆盖，例: PY_VER=3.10 bash scripts/pack.sh）
-PY_VER="${PY_VER:-$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "3.10")}"
-CUDA_VER="${CUDA_VER:-cu122}"
-
-echo "=== Eyes 离线打包 ==="
+echo "=== Eyes 部署打包 ==="
 echo "  目标平台: ${GPU_OS}/${GPU_ARCH}"
-echo "  目标 Python: ${PY_VER} (可用 PY_VER=3.x 覆盖)"
-echo "  CUDA 版本: ${CUDA_VER} (可用 CUDA_VER=cu118 覆盖)"
 echo ""
 
 # 清理
@@ -41,82 +34,17 @@ mkdir -p "${PACK_DIR}"
 # -----------------------------------------------------------
 # 1. Go 交叉编译（静态链接，服务器无需装 Go）
 # -----------------------------------------------------------
-echo ">>> Step 1/5: Go 交叉编译"
+echo ">>> Step 1/4: Go 交叉编译"
 cd "${PROJECT_ROOT}"
 CGO_ENABLED=0 GOOS=${GPU_OS} GOARCH=${GPU_ARCH} \
   go build -ldflags="-s -w" -o "${PACK_DIR}/bin/eyes-server" ./cmd/server
 echo "  -> bin/eyes-server OK"
 
 # -----------------------------------------------------------
-# 2. 下载 Python 离线包（含 CUDA 12.1 的 torch）
+# 2. 拷贝项目文件
 # -----------------------------------------------------------
 echo ""
-echo ">>> Step 2/5: 下载 Python 离线包 (${CUDA_VER})"
-PIP_PKG_DIR="${PACK_DIR}/pip-packages"
-mkdir -p "${PIP_PKG_DIR}"
-
-# torch CUDA whl 需要直接指定平台下载
-# pip download --platform 在 macOS 上配合 PyTorch index 有兼容问题，
-# 因此分两步：1）直接从 PyTorch CDN 下载 torch whl；2）用 pip download 下其余包
-
-TORCH_PY="cp${PY_VER//./}"  # 例: 3.12 -> cp312
-echo "  正在查询 torch whl (${CUDA_VER}, ${TORCH_PY}, linux_x86_64)..."
-
-# 从 PyTorch 索引页查找最新的 torch whl URL
-TORCH_INDEX="https://download.pytorch.org/whl/${CUDA_VER}/torch/"
-TORCH_WHL_NAME=$(curl -sL "${TORCH_INDEX}" | \
-  grep -oE "torch-[0-9]+\.[0-9]+\.[0-9]+\+${CUDA_VER}-${TORCH_PY}-${TORCH_PY}-linux_x86_64\.whl" | \
-  sort -V | tail -1)
-
-if [ -z "${TORCH_WHL_NAME}" ]; then
-  # 尝试 manylinux 格式
-  TORCH_WHL_NAME=$(curl -sL "${TORCH_INDEX}" | \
-    grep -oE "torch-[0-9]+\.[0-9]+\.[0-9]+\+${CUDA_VER}-${TORCH_PY}-${TORCH_PY}-manylinux[^\"]*\.whl" | \
-    sort -V | tail -1)
-fi
-
-if [ -n "${TORCH_WHL_NAME}" ]; then
-  TORCH_WHL_URL="https://download.pytorch.org/whl/${CUDA_VER}/${TORCH_WHL_NAME}"
-  echo "  找到: ${TORCH_WHL_NAME}"
-  echo "  下载中（约 2GB，请耐心等待）..."
-  curl -L -o "${PIP_PKG_DIR}/${TORCH_WHL_NAME}" "${TORCH_WHL_URL}"
-  echo "  -> torch whl 已下载"
-else
-  echo "  WARNING: 未找到匹配的 torch whl, 尝试 pip download 方式..."
-  pip3 download -d "${PIP_PKG_DIR}" "torch" \
-    --index-url "https://download.pytorch.org/whl/${CUDA_VER}" 2>&1 | tail -5
-fi
-
-# torch 的依赖: nvidia 运行时库 + triton 等（从 PyTorch 索引下载）
-echo "  下载 torch 依赖..."
-for DEP in nvidia-cuda-runtime-cu12 nvidia-cuda-cupti-cu12 nvidia-cuda-nvrtc-cu12 \
-           nvidia-cudnn-cu12 nvidia-cublas-cu12 nvidia-cufft-cu12 nvidia-curand-cu12 \
-           nvidia-cusolver-cu12 nvidia-cusparse-cu12 nvidia-nccl-cu12 nvidia-nvtx-cu12 \
-           nvidia-nvjitlink-cu12 triton; do
-  pip3 download -d "${PIP_PKG_DIR}" "${DEP}" \
-    --platform manylinux2014_x86_64 \
-    --python-version "${PY_VER}" \
-    --only-binary=:all: 2>/dev/null || true
-done
-echo "  -> torch 依赖已下载"
-
-# 其他依赖（这些包跨平台兼容性好）
-pip3 download \
-  -d "${PIP_PKG_DIR}" \
-  numpy pandas scikit-learn flask pyyaml joblib matplotlib \
-  --platform manylinux2014_x86_64 \
-  --python-version "${PY_VER}" \
-  --only-binary=:all: \
-  2>&1 | tail -5
-echo "  -> 其余依赖已下载"
-
-echo "  离线包数量: $(ls ${PIP_PKG_DIR}/*.whl 2>/dev/null | wc -l) 个 whl"
-
-# -----------------------------------------------------------
-# 3. 拷贝项目文件
-# -----------------------------------------------------------
-echo ""
-echo ">>> Step 3/5: 拷贝项目文件"
+echo ">>> Step 2/4: 拷贝项目文件"
 
 cp -r "${PROJECT_ROOT}/ml" "${PACK_DIR}/ml"
 cp "${PROJECT_ROOT}/config.json" "${PACK_DIR}/"
@@ -131,10 +59,10 @@ fi
 echo "  -> OK"
 
 # -----------------------------------------------------------
-# 4. 生成安装脚本 + 一键训练脚本
+# 3. 生成安装脚本 + 一键训练脚本
 # -----------------------------------------------------------
 echo ""
-echo ">>> Step 4/5: 生成部署脚本"
+echo ">>> Step 3/4: 生成部署脚本"
 
 # ---- install.sh ----
 cat > "${PACK_DIR}/install.sh" << 'EOF'
@@ -142,7 +70,7 @@ cat > "${PACK_DIR}/install.sh" << 'EOF'
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "=== Eyes 离线安装 ==="
+echo "=== Eyes 环境安装 ==="
 
 # 检查 Python
 if ! command -v python3 &>/dev/null; then
@@ -159,11 +87,10 @@ else
   echo "  WARNING: 未检测到 nvidia-smi，将使用 CPU 训练"
 fi
 
-# 安装 Python 包（离线）
+# 安装 Python 包（在线）
 echo ""
-echo ">>> 安装 Python 离线包..."
-pip3 install --no-index --find-links="${DIR}/pip-packages" \
-  torch numpy pandas scikit-learn flask pyyaml joblib matplotlib
+echo ">>> 安装 Python 依赖..."
+pip3 install -r "${DIR}/ml/requirements.txt"
 
 # 验证 torch + CUDA
 python3 -c "
@@ -266,10 +193,10 @@ chmod +x "${PACK_DIR}/train.sh"
 echo "  -> install.sh, train.sh 已生成"
 
 # -----------------------------------------------------------
-# 5. 打包
+# 4. 打包
 # -----------------------------------------------------------
 echo ""
-echo ">>> Step 5/5: 打包"
+echo ">>> Step 4/4: 打包"
 cd "${DIST_DIR}"
 tar czf eyes-deploy.tar.gz eyes-deploy/
 FINAL_SIZE=$(du -sh eyes-deploy.tar.gz | cut -f1)
@@ -281,5 +208,5 @@ echo "  部署步骤："
 echo "    1. scp dist/eyes-deploy.tar.gz user@gpu-server:~/"
 echo "    2. ssh gpu-server"
 echo "    3. tar xzf eyes-deploy.tar.gz && cd eyes-deploy"
-echo "    4. bash install.sh    # 安装 Python 离线包"
+echo "    4. bash install.sh    # 在线安装 Python 依赖"
 echo "    5. bash train.sh      # 一键训练"

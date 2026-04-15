@@ -16,7 +16,7 @@
 - NVIDIA Driver 535+
 - CUDA 12.2（也支持 12.1）
 - Python 3.9+ 与 pip
-- 可以无网络（离线部署）
+- 网络连接（pip 在线安装依赖）
 
 ---
 
@@ -52,18 +52,15 @@ python3 ml/scripts/serve.py --model data/models/best_model.pt --port 5000
 
 ---
 
-## 三、离线部署（无网络）
+## 三、服务器部署
 
 ### 3.1 本地打包
 
-在有网络的开发机上执行：
+在开发机上执行：
 
 ```bash
-# 默认 CUDA 12.2
+# 默认 Linux amd64
 make pack
-
-# 指定 CUDA 版本
-CUDA_VER=cu121 bash scripts/pack.sh
 
 # ARM64 架构
 GPU_ARCH=arm64 bash scripts/pack.sh
@@ -84,13 +81,13 @@ cd /opt/eyes
 tar xzf eyes-deploy.tar.gz
 cd eyes-deploy
 
-# 安装 Python 依赖（离线）
+# 在线安装 Python 依赖
 bash install.sh
 ```
 
 `install.sh` 会自动：
 1. 检测 GPU 和 CUDA
-2. 从 pip-packages/ 目录离线安装 PyTorch 和依赖
+2. 通过 pip 在线安装 PyTorch 和其他依赖
 3. 验证 torch.cuda.is_available()
 
 ### 3.4 训练模型
@@ -129,12 +126,11 @@ eyes-deploy/
 │   ├── models/              # Transformer 模型定义
 │   ├── scripts/             # 训练和推理脚本
 │   └── requirements.txt     # Python 依赖清单
-├── pip-packages/            # 离线 Python 包（torch whl + nvidia + 其他）
 ├── data/
 │   └── features/            # 预处理特征文件
 ├── config.json              # 全局配置
 ├── *.csv                    # tick 数据文件
-├── install.sh               # 离线安装脚本
+├── install.sh               # 在线安装脚本
 └── train.sh                 # 训练启动脚本
 ```
 

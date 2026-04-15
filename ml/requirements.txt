@@ -1,8 +1,7 @@
 # ============================================================
 # Eyes 量化系统 Python 依赖
 #
-# 在线安装:  pip install -r ml/requirements.txt
-# 离线安装:  pip install --no-index --find-links=pip-packages/ -r ml/requirements.txt
+# 安装:  pip install -r ml/requirements.txt
 # ============================================================
 
 # 深度学习框架（DDP 多卡训练需要 >= 2.0）
