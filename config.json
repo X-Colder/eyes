@@ -1,0 +1,27 @@
+{
+    "server": {
+        "port": "8080"
+    },
+    "data": {
+        "tick_dir": ".",
+        "output_dir": "data/features"
+    },
+    "feature": {
+        "bar_interval": 30,
+        "window_size": 10,
+        "future_steps": 3,
+        "price_thresh": 0.02
+    },
+    "ml": {
+        "model_dir": "data/models",
+        "script_dir": "ml/scripts",
+        "python_path": "python3",
+        "service_url": "http://localhost:5000"
+    },
+    "backtest": {
+        "initial_cash": 100000,
+        "commission": 0.0003,
+        "slippage": 0.001,
+        "max_position": 10000
+    }
+}

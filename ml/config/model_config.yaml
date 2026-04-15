@@ -1,0 +1,31 @@
+# Transformer 模型配置
+model:
+  d_model: 64          # 模型维度
+  nhead: 4             # 多头注意力头数
+  num_layers: 3        # Transformer encoder 层数
+  dim_feedforward: 128 # 前馈网络维度
+  dropout: 0.1         # Dropout 比率
+  num_classes: 2       # 分类数（涨/跌）
+
+training:
+  batch_size: 32
+  epochs: 100
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  scheduler_step: 20
+  scheduler_gamma: 0.5
+  early_stop_patience: 15
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+
+data:
+  window_size: 10      # 与 Go 端一致
+  feature_dim: 150     # 由 Go 端特征工程决定（14*10 + 10）
+  normalize: true
+  augment: false
+
+inference:
+  confidence_threshold: 0.6
+  service_port: 5000
+  model_path: "data/models/best_model.pt"
