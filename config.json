@@ -15,7 +15,7 @@
     "ml": {
         "model_dir": "data/models",
         "script_dir": "ml/scripts",
-        "python_path": "python3",
+        "python_path": "data/venv/bin/python3",
         "service_url": "http://localhost:5000"
     },
     "backtest": {

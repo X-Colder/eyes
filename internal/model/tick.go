@@ -15,6 +15,11 @@ type TickData struct {
 	SaleOrderPrice  float64 `json:"sale_order_price"`  // 卖方委托价格
 	BuyOrderID      int64   `json:"buy_order_id"`      // 买方委托编号
 	BuyOrderPrice   float64 `json:"buy_order_price"`   // 买方委托价格
+
+	// === 期货特有字段 ===
+	OpenInterest   int64  `json:"open_interest"`    // 持仓量
+	ContractMonth  string `json:"contract_month"`   // 合约月份 (如 "2401")
+	IsMainContract bool   `json:"is_main_contract"` // 是否主力合约
 }
 
 // TickBar 聚合后的 K 线级别数据（按固定时间窗口聚合 tick）
@@ -31,6 +36,12 @@ type TickBar struct {
 	BuyVolume  int64   `json:"buy_volume"`  // 主买量
 	SellVolume int64   `json:"sell_volume"` // 主卖量
 	VWAP       float64 `json:"vwap"`        // 成交量加权均价
+
+	// === 期货特有字段 ===
+	OpenInterest    int64  `json:"open_interest"`     // 持仓量
+	OpenInterestChg int64  `json:"open_interest_chg"` // 持仓量变化
+	ContractMonth   string `json:"contract_month"`    // 合约月份
+	IsMainContract  bool   `json:"is_main_contract"`  // 是否主力
 }
 
 // TrendPhase 趋势阶段标注

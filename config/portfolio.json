@@ -1,0 +1,121 @@
+{
+    "version": "1.0",
+    "description": "多品种组合交易配置",
+    "optimizer": {
+        "max_total_risk": 0.3,
+        "max_single_risk": 0.15,
+        "min_sharpe_ratio": 1.0,
+        "risk_free_rate": 0.03,
+        "max_correlation": 0.85,
+        "min_diversification": 0.3
+    },
+    "instruments": [
+        {
+            "symbol": "002484",
+            "name": "宁波银行",
+            "type": "stock",
+            "exchange": "SZSE",
+            "lot_size": 100,
+            "enabled": true,
+            "feature_dim": 150,
+            "window_size": 10,
+            "bar_interval": 30,
+            "max_position": 10000,
+            "max_leverage": 1.0,
+            "stop_loss_ratio": 0.05,
+            "take_profit_ratio": 0.15
+        },
+        {
+            "symbol": "600519",
+            "name": "贵州茅台",
+            "type": "stock",
+            "exchange": "SSE",
+            "lot_size": 100,
+            "enabled": true,
+            "feature_dim": 150,
+            "window_size": 10,
+            "bar_interval": 30,
+            "max_position": 1000,
+            "max_leverage": 1.0,
+            "stop_loss_ratio": 0.05,
+            "take_profit_ratio": 0.15
+        },
+        {
+            "symbol": "IF",
+            "name": "沪深300股指期货",
+            "type": "future",
+            "exchange": "CFFEX",
+            "multiplier": 300,
+            "margin_ratio": 0.12,
+            "min_tick": 0.2,
+            "lot_size": 1,
+            "enabled": true,
+            "underlying_symbol": "000300",
+            "feature_dim": 185,
+            "window_size": 10,
+            "bar_interval": 30,
+            "max_position": 10,
+            "max_leverage": 8.0,
+            "stop_loss_ratio": 0.03,
+            "take_profit_ratio": 0.10
+        },
+        {
+            "symbol": "IC",
+            "name": "中证500股指期货",
+            "type": "future",
+            "exchange": "CFFEX",
+            "multiplier": 200,
+            "margin_ratio": 0.14,
+            "min_tick": 0.2,
+            "lot_size": 1,
+            "enabled": true,
+            "underlying_symbol": "000905",
+            "feature_dim": 185,
+            "window_size": 10,
+            "bar_interval": 30,
+            "max_position": 15,
+            "max_leverage": 7.0,
+            "stop_loss_ratio": 0.03,
+            "take_profit_ratio": 0.10
+        }
+    ],
+    "trading": {
+        "initial_cash": 1000000,
+        "commission_rate": 0.0003,
+        "slippage": 0.001,
+        "max_total_position_value": 800000,
+        "reserve_cash_ratio": 0.2
+    },
+    "risk_control": {
+        "max_drawdown_threshold": 0.2,
+        "daily_loss_limit": 0.05,
+        "position_concentration_limit": 0.3,
+        "correlation_warning_threshold": 0.8
+    },
+    "strategy_switch": {
+        "arbitrage_enabled": true,
+        "hedge_enabled": true,
+        "resonance_enabled": true,
+        "independent_enabled": true,
+        "arbitrage_min_basis": 0.005,
+        "hedge_min_correlation": 0.6,
+        "resonance_min_correlation": 0.7,
+        "resonance_min_signals": 2
+    },
+    "model_service": {
+        "url": "http://localhost:5000",
+        "timeout_ms": 100,
+        "retry_count": 3,
+        "batch_size": 100
+    },
+    "data_sources": {
+        "stock": {
+            "tick_dir": "data/ticks/stock",
+            "feature_dir": "data/features/stock"
+        },
+        "future": {
+            "tick_dir": "data/ticks/future",
+            "feature_dir": "data/features/future"
+        }
+    }
+}
