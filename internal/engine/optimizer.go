@@ -163,13 +163,11 @@ func (po *PortfolioOptimizer) generateCandidates(
 		}
 
 		latest := sigs[len(sigs)-1]
-		pred, ok := predictions[symbol]
-		if !ok {
+		if _, ok := predictions[symbol]; !ok {
 			continue
 		}
 
-		meta, ok := instruments[symbol]
-		if !ok {
+		if _, ok := instruments[symbol]; !ok {
 			continue
 		}
 
@@ -226,7 +224,7 @@ func (po *PortfolioOptimizer) identifyStrategy(
 ) string {
 
 	// 1. 检查是否有套利机会 (基差异常)
-	for symbol, basis := range basisMap {
+	for _, basis := range basisMap {
 		if math.Abs(basis) > 0.005 { // 基差 > 0.5%
 			return "arbitrage"
 		}

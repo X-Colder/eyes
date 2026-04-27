@@ -232,6 +232,214 @@
             margin-right: 8px;
             animation: pulse 2s ease-in-out infinite;
         }
+
+        /* 交易管理模块 */
+        .trade-control {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .trade-control-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .trade-control-header h2 {
+            font-size: 20px;
+            color: #60a5fa;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .trade-mode-badges {
+            display: flex;
+            gap: 10px;
+        }
+
+        .mode-badge {
+            padding: 6px 14px;
+            border-radius: 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .mode-badge.simulation {
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            border-color: #3b82f6;
+        }
+
+        .mode-badge.simulation.active {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .mode-badge.live {
+            background: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+            border-color: #f59e0b;
+        }
+
+        .mode-badge.live.active {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .trade-control-body {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+
+        .control-section {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .control-section h3 {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .control-row label {
+            font-size: 13px;
+            color: #94a3b8;
+            min-width: 80px;
+        }
+
+        .control-input {
+            flex: 1;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: #e2e8f0;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .control-input:focus {
+            border-color: #3b82f6;
+        }
+
+        .control-select {
+            flex: 1;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: #e2e8f0;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-start {
+            background: #22c55e;
+            color: white;
+        }
+
+        .btn-start:hover:not(:disabled) {
+            background: #16a34a;
+        }
+
+        .btn-stop {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-stop:hover:not(:disabled) {
+            background: #dc2626;
+        }
+
+        .btn-reset {
+            background: #64748b;
+            color: white;
+        }
+
+        .btn-reset:hover:not(:disabled) {
+            background: #475569;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .trade-status-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 10px 16px;
+            background: #0f172a;
+            border-radius: 8px;
+            margin-top: 16px;
+            font-size: 13px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-dot.running { background: #22c55e; animation: pulse 2s ease-in-out infinite; }
+        .status-dot.stopped { background: #64748b; }
+        .status-dot.completed { background: #3b82f6; }
+        .status-dot.error { background: #ef4444; }
+
+        .trade-info-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #94a3b8;
+        }
+
+        .trade-info-item span.value {
+            color: #e2e8f0;
+            font-weight: 600;
+        }
     </style>
 </head>
 
@@ -244,6 +452,103 @@
                     <span class="live-indicator"></span>系统运行中
                 </span>
                 <span id="current-time" class="status-badge" style="background: #334155;">--:--:--</span>
+            </div>
+        </div>
+
+        <!-- 交易管理模块 -->
+        <div class="trade-control">
+            <div class="trade-control-header">
+                <h2>⚙️ 交易管理</h2>
+                <div class="trade-mode-badges">
+                    <span class="mode-badge simulation active" id="mode-simulation" onclick="selectMode('simulation')">模拟交易</span>
+                    <span class="mode-badge live" id="mode-live" onclick="selectMode('live')">实盘交易</span>
+                </div>
+            </div>
+            <div class="trade-control-body">
+                <!-- 交易配置 -->
+                <div class="control-section">
+                    <h3>交易配置</h3>
+                    <div class="control-row">
+                        <label>初始资金</label>
+                        <input type="number" class="control-input" id="input-cash" value="100000" min="10000" step="10000">
+                    </div>
+                    <div class="control-row">
+                        <label>交易标的</label>
+                        <input type="text" class="control-input" id="input-symbol" value="002484" readonly>
+                    </div>
+                    <div class="control-row">
+                        <label>回放速度</label>
+                        <select class="control-select" id="input-speed">
+                            <option value="100">极快 (100ms)</option>
+                            <option value="300">快速 (300ms)</option>
+                            <option value="500" selected>正常 (500ms)</option>
+                            <option value="1000">慢速 (1s)</option>
+                            <option value="2000">极慢 (2s)</option>
+                        </select>
+                    </div>
+                    <div class="control-row">
+                        <label>数据年份</label>
+                        <select class="control-select" id="input-year" multiple style="height:56px;">
+                            <option value="2019" selected>2019</option>
+                            <option value="2020">2020</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 操作控制 -->
+                <div class="control-section">
+                    <h3>操作控制</h3>
+                    <div class="btn-group" style="flex-direction: column;">
+                        <button class="btn btn-start" id="btn-start" onclick="startTrading()">
+                            ▶ 启动模拟交易
+                        </button>
+                        <button class="btn btn-stop" id="btn-stop" onclick="stopTrading()" disabled>
+                            ⏹ 停止交易
+                        </button>
+                        <button class="btn btn-reset" id="btn-reset" onclick="resetTrading()">
+                            ↻ 重置数据
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 运行状态 -->
+                <div class="control-section">
+                    <h3>运行状态</h3>
+                    <div class="control-row">
+                        <label>交易模式</label>
+                        <span id="ctrl-mode" style="color: #60a5fa; font-weight: 600;">模拟盘</span>
+                    </div>
+                    <div class="control-row">
+                        <label>运行状态</label>
+                        <span id="ctrl-status" style="color: #64748b; font-weight: 600;">已停止</span>
+                    </div>
+                    <div class="control-row">
+                        <label>当前日期</label>
+                        <span id="ctrl-day" style="color: #e2e8f0; font-weight: 600;">--</span>
+                    </div>
+                    <div class="control-row">
+                        <label>回放进度</label>
+                        <span id="ctrl-progress" style="color: #e2e8f0; font-weight: 600;">0%</span>
+                    </div>
+                    <div class="control-row" id="ctrl-error-row" style="display:none;">
+                        <label>错误信息</label>
+                        <span id="ctrl-error" style="color: #ef4444; font-weight: 600; font-size: 12px;"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 状态栏 -->
+            <div class="trade-status-bar">
+                <div class="trade-info-item">
+                    <span class="status-dot stopped" id="ctrl-dot"></span>
+                    <span id="ctrl-status-text">等待启动</span>
+                </div>
+                <div class="trade-info-item">|</div>
+                <div class="trade-info-item">初始资金: <span class="value" id="ctrl-cash">100,000</span></div>
+                <div class="trade-info-item">|</div>
+                <div class="trade-info-item">标的: <span class="value" id="ctrl-symbol">002484</span></div>
+                <div class="trade-info-item">|</div>
+                <div class="trade-info-item">总天数: <span class="value" id="ctrl-total-days">--</span></div>
             </div>
         </div>
 
@@ -414,13 +719,159 @@
         </div>
 
         <div class="refresh-info">
-            数据每3秒自动刷新 | 最后更新: <span id="last-update">--:--:--</span>
+            数据每1秒自动刷新 | 最后更新: <span id="last-update">--:--:--</span>
         </div>
     </div>
 
     <script>
         // API基础URL
         const API_BASE = 'http://localhost:8082/api';
+
+        // 当前交易模式
+        let currentMode = 'simulation';
+        let isRunning = false;
+
+        // 选择交易模式
+        // 仅更新模式UI（不启动交易），供updateDashboard调用
+        function updateModeUI(mode) {
+            currentMode = mode;
+            document.getElementById('mode-simulation').className = 'mode-badge simulation' + (mode === 'simulation' ? ' active' : '');
+            document.getElementById('mode-live').className = 'mode-badge live' + (mode === 'live' ? ' active' : '');
+            
+            // 更新启动按钮文案和样式
+            const btnStart = document.getElementById('btn-start');
+            btnStart.style.removeProperty('background');
+            if (mode === 'simulation') {
+                btnStart.textContent = '▶ 启动模拟交易';
+                btnStart.className = 'btn btn-start';
+            } else {
+                btnStart.textContent = '▶ 启动实盘交易';
+                btnStart.className = 'btn btn-start';
+                btnStart.style.background = '#f59e0b';
+            }
+        }
+
+        // 选择模式并启动交易（用户点击模式徽章时调用）
+        function selectMode(mode) {
+            updateModeUI(mode);
+            // 如果当前未运行，直接启动交易
+            if (!isRunning) {
+                startTrading();
+            }
+        }
+
+        // 启动交易
+        async function startTrading() {
+            const btnStart = document.getElementById('btn-start');
+            const origText = btnStart.textContent;
+            btnStart.disabled = true;
+            btnStart.textContent = '⏳ 启动中...';
+
+            const cash = parseFloat(document.getElementById('input-cash').value) || 100000;
+            const speed = parseInt(document.getElementById('input-speed').value) || 500;
+            const symbol = document.getElementById('input-symbol').value || '002484';
+            // 获取选中的年份
+            const yearSelect = document.getElementById('input-year');
+            const years = Array.from(yearSelect.selectedOptions).map(o => o.value);
+            if (years.length === 0) {
+                alert('请至少选择一个数据年份');
+                btnStart.textContent = origText;
+                btnStart.disabled = false;
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/trade/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: currentMode, cash, speed, symbol, years })
+                });
+                const data = await res.json();
+                if (data.error) {
+                    alert('启动失败: ' + data.error);
+                    btnStart.textContent = origText;
+                    btnStart.disabled = false;
+                    return;
+                }
+                isRunning = true;
+                updateControlButtons();
+                logTradeAction('启动 ' + (currentMode === 'simulation' ? '模拟' : '实盘') + '交易');
+                // 状态栏显示成功提示
+                document.getElementById('ctrl-status-text').textContent = '交易已启动';
+            } catch (err) {
+                alert('启动失败: ' + err.message);
+                btnStart.textContent = origText;
+                btnStart.disabled = false;
+            }
+        }
+
+        // 停止交易
+        async function stopTrading() {
+            const btnStop = document.getElementById('btn-stop');
+            btnStop.disabled = true;
+            btnStop.textContent = '⏳ 停止中...';
+
+            try {
+                await fetch(`${API_BASE}/trade/stop`, { method: 'POST' });
+                isRunning = false;
+                updateControlButtons();
+                logTradeAction('停止交易');
+                document.getElementById('ctrl-status-text').textContent = '交易已停止';
+            } catch (err) {
+                alert('停止失败: ' + err.message);
+                updateControlButtons();
+            }
+        }
+
+        // 重置数据
+        async function resetTrading() {
+            const btnReset = document.getElementById('btn-reset');
+            const origText = btnReset.textContent;
+            btnReset.disabled = true;
+            btnReset.textContent = '⏳ 重置中...';
+
+            const cash = parseFloat(document.getElementById('input-cash').value) || 100000;
+            const symbol = document.getElementById('input-symbol').value || '002484';
+
+            try {
+                const res = await fetch(`${API_BASE}/trade/reset`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cash, symbol })
+                });
+                const data = await res.json();
+                if (data.error) {
+                    alert('重置失败: ' + data.error);
+                    btnReset.textContent = origText;
+                    btnReset.disabled = false;
+                    return;
+                }
+                isRunning = false;
+                updateControlButtons();
+                btnReset.textContent = origText;
+                btnReset.disabled = false;
+                logTradeAction('重置数据，初始资金: ' + cash.toLocaleString());
+                document.getElementById('ctrl-status-text').textContent = '数据已重置';
+            } catch (err) {
+                alert('重置失败: ' + err.message);
+                btnReset.textContent = origText;
+                btnReset.disabled = false;
+            }
+        }
+
+        // 更新按钮状态
+        function updateControlButtons() {
+            document.getElementById('btn-start').disabled = isRunning;
+            document.getElementById('btn-stop').disabled = !isRunning;
+            document.getElementById('input-cash').disabled = isRunning;
+            document.getElementById('input-speed').disabled = isRunning;
+            document.getElementById('input-year').disabled = isRunning;
+        }
+
+        // 日志
+        function logTradeAction(msg) {
+            console.log('[trade]', msg, new Date().toLocaleTimeString());
+        }
 
         // 图表实例
         let equityChart, riskChart, trainingChart, signalChart;
@@ -573,19 +1024,29 @@
 
             // 收益指标
             const returns = data.returns || {};
+            const totalReturn = returns.total_return || 0;
             document.getElementById('total-return').textContent =
-                (returns.total_return || 0).toFixed(2) + '%';
+                totalReturn.toFixed(2) + '%';
+            const totalReturnEl = document.getElementById('total-return');
+            if (totalReturn >= 0) {
+                totalReturnEl.style.color = '#22c55e';
+            } else {
+                totalReturnEl.style.color = '#ef4444';
+            }
             document.getElementById('sharpe-ratio').textContent =
                 (returns.sharpe_ratio || 0).toFixed(2);
             document.getElementById('max-drawdown').textContent =
-                (returns.max_drawdown * 100 || 0).toFixed(2) + '%';
+                ((returns.max_drawdown || 0) * 100).toFixed(2) + '%';
+            const winRate = returns.win_rate || 0;
             document.getElementById('win-rate').textContent =
-                (returns.win_rate * 100 || 0).toFixed(1) + '%';
+                (winRate * 100).toFixed(1) + '%';
 
             // 权益曲线
             if (data.equity_curve && data.equity_curve.length > 0) {
-                const labels = data.equity_curve.map(p => p.timestamp);
-                const values = data.equity_curve.map(p => p.equity);
+                // 只显示最近100个点，避免图表过密
+                const curve = data.equity_curve.slice(-100);
+                const labels = curve.map(p => p.timestamp);
+                const values = curve.map(p => p.equity);
 
                 equityChart.data.labels = labels;
                 equityChart.data.datasets[0].data = values;
@@ -594,9 +1055,10 @@
 
             // 风险指标
             if (data.risk_history && data.risk_history.length > 0) {
-                const labels = data.risk_history.map(p => p.timestamp);
-                const var95 = data.risk_history.map(p => p.var_95);
-                const totalRisk = data.risk_history.map(p => p.total_risk);
+                const hist = data.risk_history.slice(-50);
+                const labels = hist.map(p => p.timestamp);
+                const var95 = hist.map(p => p.var_95);
+                const totalRisk = hist.map(p => p.total_risk);
 
                 riskChart.data.labels = labels;
                 riskChart.data.datasets[0].data = var95;
@@ -622,9 +1084,10 @@
 
             // 训练曲线
             if (data.training_history && data.training_history.length > 0) {
-                const labels = data.training_history.map(p => p.epoch);
-                const trainLoss = data.training_history.map(p => p.train_loss);
-                const valLoss = data.training_history.map(p => p.val_loss);
+                const hist = data.training_history.slice(-50);
+                const labels = hist.map(p => p.epoch);
+                const trainLoss = hist.map(p => p.train_loss);
+                const valLoss = hist.map(p => p.val_loss);
 
                 trainingChart.data.labels = labels;
                 trainingChart.data.datasets[0].data = trainLoss;
@@ -722,6 +1185,55 @@
                 statusBadge.className = 'status-badge status-warning';
                 statusBadge.textContent = '系统停止';
             }
+
+            // 交易控制状态
+            const ctrl = data.control || {};
+            isRunning = (ctrl.status === 'running');
+            updateControlButtons();
+
+            // 更新模式（仅UI，不触发启动）
+            if (ctrl.mode === 'simulation') {
+                updateModeUI('simulation');
+            } else if (ctrl.mode === 'live') {
+                updateModeUI('live');
+            }
+
+            // 更新状态显示
+            const modeNames = { simulation: '模拟盘', live: '实盘', stopped: '--' };
+            const statusNames = { running: '运行中', stopped: '已停止', completed: '已完成', paused: '已暂停', error: '异常' };
+            const statusColors = { running: '#22c55e', stopped: '#64748b', completed: '#3b82f6', paused: '#f59e0b', error: '#ef4444' };
+
+            document.getElementById('ctrl-mode').textContent = modeNames[ctrl.mode] || ctrl.mode;
+            document.getElementById('ctrl-mode').style.color = ctrl.mode === 'live' ? '#f59e0b' : '#60a5fa';
+            
+            const statusEl = document.getElementById('ctrl-status');
+            statusEl.textContent = statusNames[ctrl.status] || ctrl.status;
+            statusEl.style.color = statusColors[ctrl.status] || '#64748b';
+
+            document.getElementById('ctrl-day').textContent = ctrl.current_day || '--';
+            document.getElementById('ctrl-progress').textContent = (ctrl.progress_pct || 0).toFixed(1) + '%';
+            document.getElementById('ctrl-cash').textContent = (ctrl.initial_cash || 100000).toLocaleString();
+            document.getElementById('ctrl-symbol').textContent = ctrl.symbol || '--';
+            document.getElementById('ctrl-total-days').textContent = ctrl.total_days || '--';
+
+            // 状态点
+            const dotEl = document.getElementById('ctrl-dot');
+            dotEl.className = 'status-dot ' + (ctrl.status || 'stopped');
+
+            // 状态栏文字
+            document.getElementById('ctrl-status-text').textContent = 
+                ctrl.status === 'running' ? '交易运行中' :
+                ctrl.status === 'completed' ? '回放已完成' :
+                ctrl.status === 'error' ? '交易异常' : '等待启动';
+
+            // 错误信息
+            const errorRow = document.getElementById('ctrl-error-row');
+            if (ctrl.error_message) {
+                errorRow.style.display = 'flex';
+                document.getElementById('ctrl-error').textContent = ctrl.error_message;
+            } else {
+                errorRow.style.display = 'none';
+            }
         }
 
         // 获取相关性颜色
@@ -738,7 +1250,7 @@
         fetchDashboard();
 
         // 定时刷新
-        setInterval(fetchDashboard, 3000);
+        setInterval(fetchDashboard, 1000);
     </script>
 </body>
 

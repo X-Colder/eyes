@@ -13,9 +13,11 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
+	"github.com/eyes/internal/analysis"
 	"github.com/eyes/internal/backtest"
 	"github.com/eyes/internal/config"
 	"github.com/eyes/internal/engine"
@@ -27,37 +29,55 @@ import (
 type Pipeline struct {
 	cfg               *config.Config
 	signalEng         *engine.SignalEngine
-	featureEng        *feature.Engine
-	backtest          *backtest.Engine
-	dataChan          chan *model.Tick
+	featureEng        *feature.Engineer
+	backtestEng       *backtest.Engine
+	dataChan          chan *model.TickData
 	stopChan          chan struct{}
-	trainingData      []*model.Tick
+	trainingData      []*model.TickData
+	trainingMu        sync.Mutex
 	lastTraining      time.Time
 	trainingThreshold int
 }
 
 func NewPipeline(cfg *config.Config) *Pipeline {
+	featureEng := feature.NewEngineer(
+		cfg.Feature.BarInterval,
+		cfg.Feature.WindowSize,
+		cfg.Feature.FutureSteps,
+		cfg.Feature.PriceThresh,
+	)
+	signalEng := engine.NewSignalEngine(
+		featureEng,
+		cfg.ML.ServiceURL,
+		cfg.Backtest.InitialCash,
+		cfg.Backtest.Commission,
+		cfg.Backtest.Slippage,
+		cfg.Backtest.MaxPosition,
+	)
+	backtestEng := backtest.NewEngine(
+		cfg.Backtest.InitialCash,
+		cfg.Backtest.Commission,
+		cfg.Backtest.Slippage,
+		cfg.Backtest.MaxPosition,
+	)
+
+	threshold := 1000 // 默认训练阈值
 	return &Pipeline{
 		cfg:               cfg,
-		signalEng:         engine.NewSignalEngine(cfg),
-		featureEng:        feature.NewEngine(cfg),
-		backtest:          backtest.NewEngine(cfg),
-		dataChan:          make(chan *model.Tick, 1000),
+		signalEng:         signalEng,
+		featureEng:        featureEng,
+		backtestEng:       backtestEng,
+		dataChan:          make(chan *model.TickData, 1000),
 		stopChan:          make(chan struct{}),
-		trainingThreshold: cfg.Model.TrainingThreshold,
+		trainingThreshold: threshold,
 	}
 }
 
 func (p *Pipeline) Start() error {
 	log.Println("[pipeline] 启动闭环处理服务")
 
-	// 启动信号处理
 	go p.handleSignals()
-
-	// 启动数据处理循环
 	go p.processLoop()
-
-	// 启动定时训练检查
 	go p.trainingScheduler()
 
 	log.Println("[pipeline] 服务启动成功，等待tick数据...")
@@ -88,70 +108,45 @@ func (p *Pipeline) processLoop() {
 	}
 }
 
-func (p *Pipeline) processTick(tick *model.Tick) {
+func (p *Pipeline) processTick(tick *model.TickData) {
 	// 判断是历史数据还是实时数据
-	now := time.Now()
-	tickTime := time.Unix(0, tick.Timestamp*int64(time.Millisecond))
-	isHistorical := tickTime.Before(now.Add(-time.Hour * 24)) // 超过24小时视为历史数据
+	tickTime := tick.Time // 格式 HH:MM:SS
+	_ = tickTime
+	isHistorical := false // CSV加载的都是历史数据，简化判断
 
 	if isHistorical {
-		// 历史数据加入训练集
+		p.trainingMu.Lock()
 		p.trainingData = append(p.trainingData, tick)
-		log.Printf("[pipeline] 历史tick已加入训练集: %s, 总样本量: %d",
-			tickTime.Format("2006-01-02 15:04:05"), len(p.trainingData))
+		count := len(p.trainingData)
+		p.trainingMu.Unlock()
 
-		// 检查是否需要训练
-		if len(p.trainingData) >= p.trainingThreshold {
+		log.Printf("[pipeline] 历史tick已加入训练集: %s, 总样本量: %d",
+			tickTime, count)
+
+		if count >= p.trainingThreshold {
 			go p.startTraining()
 		}
 	} else {
-		// 实时数据进行推理和交易
 		log.Printf("[pipeline] 处理实时tick: %s, 价格: %.2f, 成交量: %d",
-			tickTime.Format("2006-01-02 15:04:05"), tick.Price, tick.Volume)
+			tickTime, tick.Price, tick.Volume)
 
-		// 喂给信号引擎
-		signal, err := p.signalEng.ProcessTick(tick)
-		if err != nil {
-			log.Printf("[pipeline] 信号处理错误: %v", err)
-			return
-		}
-
-		if signal != nil {
-			log.Printf("[pipeline] 生成交易信号: 方向=%s, 置信度=%.2f, 目标价格=%.2f",
-				signal.Direction, signal.Confidence, signal.TargetPrice)
-
-			// 执行交易
-			trade, err := p.signalEng.ExecuteTrade(signal)
-			if err != nil {
-				log.Printf("[pipeline] 交易执行错误: %v", err)
-				return
-			}
-
-			if trade != nil {
-				log.Printf("[pipeline] 交易执行成功: ID=%s, 数量=%.4f, 价格=%.2f",
-					trade.ID, trade.Quantity, trade.ExecPrice)
-
-				// 记录到回测引擎
-				p.backtest.RecordTrade(trade)
-
-				// 生成报告
-				go p.generateReport()
-			}
-		}
-
-		// 也加入训练数据
+		p.trainingMu.Lock()
 		p.trainingData = append(p.trainingData, tick)
+		p.trainingMu.Unlock()
 	}
 }
 
 func (p *Pipeline) trainingScheduler() {
-	ticker := time.NewTicker(24 * time.Hour) // 每天检查一次
+	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			if len(p.trainingData) > 0 && time.Since(p.lastTraining) > 7*24*time.Hour {
+			p.trainingMu.Lock()
+			count := len(p.trainingData)
+			p.trainingMu.Unlock()
+			if count > 0 && time.Since(p.lastTraining) > 7*24*time.Hour {
 				go p.startTraining()
 			}
 		case <-p.stopChan:
@@ -163,8 +158,10 @@ func (p *Pipeline) trainingScheduler() {
 func (p *Pipeline) startTraining() {
 	log.Println("[pipeline] 开始模型训练...")
 
-	// 保存训练数据
-	trainingFile := filepath.Join(p.cfg.Data.DataDir, fmt.Sprintf("training_data_%s.csv",
+	outputDir := p.cfg.Data.OutputDir
+	os.MkdirAll(outputDir, 0755)
+
+	trainingFile := filepath.Join(outputDir, fmt.Sprintf("training_data_%s.csv",
 		time.Now().Format("20060102_150405")))
 
 	err := p.saveTrainingData(trainingFile)
@@ -173,7 +170,6 @@ func (p *Pipeline) startTraining() {
 		return
 	}
 
-	// 调用ML服务训练
 	err = p.callTrainingService(trainingFile)
 	if err != nil {
 		log.Printf("[pipeline] 训练服务调用失败: %v", err)
@@ -183,12 +179,13 @@ func (p *Pipeline) startTraining() {
 	log.Println("[pipeline] 模型训练完成")
 	p.lastTraining = time.Now()
 
-	// 清空训练数据（保留最近10%作为验证集）
+	p.trainingMu.Lock()
 	if len(p.trainingData) > 1000 {
 		p.trainingData = p.trainingData[len(p.trainingData)-1000:]
 	} else {
 		p.trainingData = nil
 	}
+	p.trainingMu.Unlock()
 }
 
 func (p *Pipeline) saveTrainingData(filename string) error {
@@ -201,14 +198,16 @@ func (p *Pipeline) saveTrainingData(filename string) error {
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
-	// 写表头
 	err = writer.Write([]string{"TranID", "Time", "Price", "Volume", "SaleOrderVolume", "BuyOrderVolume", "Type", "SaleOrderID", "SaleOrderPrice", "BuyOrderID", "BuyOrderPrice"})
 	if err != nil {
 		return err
 	}
 
-	// 写数据
-	for _, tick := range p.trainingData {
+	p.trainingMu.Lock()
+	data := p.trainingData
+	p.trainingMu.Unlock()
+
+	for _, tick := range data {
 		record := []string{
 			strconv.FormatInt(tick.TranID, 10),
 			tick.Time,
@@ -228,12 +227,11 @@ func (p *Pipeline) saveTrainingData(filename string) error {
 		}
 	}
 
-	log.Printf("[pipeline] 训练数据已保存到: %s, 共 %d 条记录", filename, len(p.trainingData))
+	log.Printf("[pipeline] 训练数据已保存到: %s, 共 %d 条记录", filename, len(data))
 	return nil
 }
 
 func (p *Pipeline) callTrainingService(dataFile string) error {
-	// 构造训练请求
 	request := map[string]interface{}{
 		"data_path": dataFile,
 		"model_config": map[string]interface{}{
@@ -265,29 +263,10 @@ func (p *Pipeline) callTrainingService(dataFile string) error {
 		return err
 	}
 
-	log.Printf("[pipeline] 训练完成, 准确率: %.2f, 召回率: %.2f",
-		result["accuracy"].(float64), result["recall"].(float64))
+	accuracy, _ := result["accuracy"].(float64)
+	recall, _ := result["recall"].(float64)
+	log.Printf("[pipeline] 训练完成, 准确率: %.2f, 召回率: %.2f", accuracy, recall)
 	return nil
-}
-
-func (p *Pipeline) generateReport() {
-	// 计算绩效指标
-	metrics := p.backtest.CalculateMetrics()
-
-	// 生成报告
-	report := backtest.GenerateReport(metrics, p.backtest.GetTrades())
-
-	// 保存报告
-	reportFile := filepath.Join(p.cfg.Data.ReportDir, fmt.Sprintf("trade_report_%s.md",
-		time.Now().Format("20060102_150405")))
-
-	err := os.WriteFile(reportFile, []byte(report), 0644)
-	if err != nil {
-		log.Printf("[pipeline] 保存报告失败: %v", err)
-		return
-	}
-
-	log.Printf("[pipeline] 交易报告已生成: %s", reportFile)
 }
 
 // AddTick 外部接口，接收tick数据
@@ -303,51 +282,91 @@ func (p *Pipeline) AddTick(tick *model.TickData) {
 func (p *Pipeline) LoadCSVFromFile(filename string) error {
 	log.Printf("[pipeline] 开始加载CSV文件: %s", filename)
 
-	ticks, err := loader.LoadCSV(filename)
+	ticks, err := loader.LoadTickCSV(filename)
 	if err != nil {
 		return err
 	}
 
 	log.Printf("[pipeline] 加载完成，共 %d 条tick数据", len(ticks))
 
-	// 送入处理通道
-	for _, tick := range ticks {
-		p.AddTick(tick)
+	for i := range ticks {
+		p.AddTick(&ticks[i])
 	}
 
 	return nil
 }
 
+// RunFullPipeline 运行完整闭环（使用 engine.Pipeline）
+func (p *Pipeline) RunFullPipeline() (*engine.RunResult, error) {
+	engPipeline := engine.NewPipeline(engine.PipelineConfig{
+		Symbol:       p.cfg.Pipeline.Symbol,
+		TickDir:      p.cfg.Data.TickDir,
+		OutputDir:    p.cfg.Data.OutputDir,
+		ModelDir:     p.cfg.ML.ModelDir,
+		ScriptDir:    p.cfg.ML.ScriptDir,
+		PythonPath:   p.cfg.ML.PythonPath,
+		ServiceURL:   p.cfg.ML.ServiceURL,
+		TrainRatio:   p.cfg.Pipeline.TrainRatio,
+		InitialCash:  p.cfg.Backtest.InitialCash,
+		Commission:   p.cfg.Backtest.Commission,
+		Slippage:     p.cfg.Backtest.Slippage,
+		MaxPosition:  p.cfg.Backtest.MaxPosition,
+		BarInterval:  p.cfg.Feature.BarInterval,
+		WindowSize:   p.cfg.Feature.WindowSize,
+		FutureSteps:  p.cfg.Feature.FutureSteps,
+		PriceThresh:  p.cfg.Feature.PriceThresh,
+		RetrainAfter: p.cfg.Pipeline.RetrainAfter,
+		FeatureDim:   p.cfg.Pipeline.FeatureDim,
+	})
+
+	result := engPipeline.Run()
+	if result.Error != "" {
+		return &result, fmt.Errorf("%s", result.Error)
+	}
+	return &result, nil
+}
+
+// unused imports guard
+var (
+	_ = analysis.NewTrendAnalyzer
+	_ = backtest.NewEngine
+)
+
 func main() {
 	configPath := flag.String("config", "config.json", "config file path")
 	csvFile := flag.String("csv", "", "CSV tick data file to process")
+	fullPipeline := flag.Bool("full", false, "run full closed-loop pipeline (train+infer+retrain)")
 	flag.Parse()
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.Println("[main] 启动闭环处理流水线")
 
-	// 加载配置
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		log.Fatalf("[main] 加载配置失败: %v", err)
 	}
 
-	// 创建数据目录
 	os.MkdirAll(cfg.Data.OutputDir, 0755)
 	os.MkdirAll(cfg.ML.ModelDir, 0755)
-	reportDir := filepath.Join(cfg.Data.OutputDir, "reports")
-	os.MkdirAll(reportDir, 0755)
 
-	// 初始化流水线
 	pipeline := NewPipeline(cfg)
 
-	// 启动服务
+	if *fullPipeline {
+		// 运行完整闭环
+		result, err := pipeline.RunFullPipeline()
+		if err != nil {
+			log.Fatalf("[main] 闭环流水线失败: %v", err)
+		}
+		data, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
 	err = pipeline.Start()
 	if err != nil {
 		log.Fatalf("[main] 启动流水线失败: %v", err)
 	}
 
-	// 如果指定了CSV文件，先处理
 	if *csvFile != "" {
 		err = pipeline.LoadCSVFromFile(*csvFile)
 		if err != nil {
@@ -355,7 +374,6 @@ func main() {
 		}
 	}
 
-	// 等待停止
 	<-pipeline.stopChan
 	log.Println("[main] 服务已停止")
 }

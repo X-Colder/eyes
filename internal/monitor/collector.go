@@ -5,6 +5,20 @@ import (
 	"time"
 )
 
+// TradeControl 交易控制状态
+type TradeControl struct {
+	Mode         string  `json:"mode"`          // simulation / live / stopped
+	Status       string  `json:"status"`        // running / stopped / paused / error
+	InitialCash  float64 `json:"initial_cash"`  // 模拟盘初始资金
+	Symbol       string  `json:"symbol"`        // 交易标的
+	ReplaySpeed  int     `json:"replay_speed"`  // 回放速度(ms)
+	CurrentDay   string  `json:"current_day"`   // 当前回放日期
+	TotalDays    int     `json:"total_days"`    // 总天数
+	ProgressPct  float64 `json:"progress_pct"`  // 回放进度%
+	StartTime    string  `json:"start_time"`    // 启动时间
+	ErrorMessage string  `json:"error_message"` // 错误信息
+}
+
 // MonitorCollector 监控数据收集器
 type MonitorCollector struct {
 	// 训练监控
@@ -29,6 +43,9 @@ type MonitorCollector struct {
 	// 系统状态
 	systemStatus *SystemStatus
 
+	// 交易控制
+	tradeControl *TradeControl
+
 	mu sync.RWMutex
 }
 
@@ -51,6 +68,13 @@ func NewMonitorCollector() *MonitorCollector {
 		correlationMap: make(map[string]map[string]float64),
 
 		systemStatus: &SystemStatus{},
+		tradeControl: &TradeControl{
+			Mode:        "stopped",
+			Status:      "stopped",
+			InitialCash: 100000,
+			Symbol:      "002484",
+			ReplaySpeed: 500,
+		},
 	}
 }
 
@@ -349,8 +373,14 @@ func (mc *MonitorCollector) UpdateEquity(equity, cash, position float64) {
 	mc.returnMetrics.CurrentEquity = equity
 	mc.returnMetrics.AvailableCash = cash
 	mc.returnMetrics.UnrealizedPnL = position
-	mc.returnMetrics.TotalReturn = (equity - mc.returnMetrics.InitialCash) /
-		mc.returnMetrics.InitialCash * 100
+	// 首次调用时设置初始资金
+	if mc.returnMetrics.InitialCash == 0 {
+		mc.returnMetrics.InitialCash = equity
+	}
+	if mc.returnMetrics.InitialCash > 0 {
+		mc.returnMetrics.TotalReturn = (equity - mc.returnMetrics.InitialCash) /
+			mc.returnMetrics.InitialCash * 100
+	}
 	mc.returnMetrics.CurrentDrawdown = drawdown
 
 	if drawdown > mc.returnMetrics.MaxDrawdown {
@@ -399,6 +429,49 @@ func (mc *MonitorCollector) UpdateSystemStatus(status *SystemStatus) {
 	mc.systemStatus = status
 }
 
+// UpdateTradeControl 更新交易控制状态
+func (mc *MonitorCollector) UpdateTradeControl(ctrl *TradeControl) {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+	mc.tradeControl = ctrl
+}
+
+// GetTradeControl 获取交易控制状态
+func (mc *MonitorCollector) GetTradeControl() *TradeControl {
+	mc.mu.RLock()
+	defer mc.mu.RUnlock()
+	return mc.tradeControl
+}
+
+// ResetData 重置所有监控数据（新交易开始前调用）
+func (mc *MonitorCollector) ResetData(initialCash float64) {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+
+	mc.trainingMetrics = &TrainingMetrics{}
+	mc.trainingHistory = make([]*TrainingSnapshot, 0, 1000)
+
+	mc.tradingMetrics = &TradingMetrics{}
+	mc.recentSignals = make([]*SignalRecord, 0, 100)
+	mc.recentTrades = make([]*TradeRecord, 0, 100)
+
+	mc.returnMetrics = &ReturnMetrics{InitialCash: initialCash}
+	mc.equityCurve = make([]*EquityPoint, 0, 1000)
+	mc.dailyReturns = make([]*DailyReturn, 0, 365)
+
+	mc.riskMetrics = &RiskMetrics{}
+	mc.riskHistory = make([]*RiskSnapshot, 0, 1000)
+
+	// 直接写入初始权益点（不调用UpdateEquity避免锁重入）
+	mc.equityCurve = append(mc.equityCurve, &EquityPoint{
+		Timestamp: time.Now().Format("2006-01-02 15:04:05"),
+		Equity:    initialCash,
+		Cash:      initialCash,
+		Position:  0,
+		Drawdown:  0,
+	})
+}
+
 // GetDashboardData 获取仪表盘数据
 func (mc *MonitorCollector) GetDashboardData() *DashboardData {
 	mc.mu.RLock()
@@ -417,6 +490,7 @@ func (mc *MonitorCollector) GetDashboardData() *DashboardData {
 		RiskHist:      mc.riskHistory,
 		Correlations:  mc.correlationMap,
 		System:        mc.systemStatus,
+		Control:       mc.tradeControl,
 		Timestamp:     time.Now().Format("2006-01-02 15:04:05"),
 	}
 }
@@ -440,4 +514,6 @@ type DashboardData struct {
 
 	System    *SystemStatus `json:"system"`
 	Timestamp string        `json:"timestamp"`
+
+	Control *TradeControl `json:"control"`
 }

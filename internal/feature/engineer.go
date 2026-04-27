@@ -131,12 +131,15 @@ func (e *Engineer) ExtractFeatures(bars []model.TickBar) []model.Feature {
 			priceChg = (futurePrice - currentPrice) / currentPrice * 100
 		}
 
-		label := 0 // 持平/观望
+		label := 0 // 默认跌
 		if priceChg > e.PriceThresh {
 			label = 1 // 涨
 		} else if priceChg < -e.PriceThresh {
 			label = 0 // 跌
+		} else if priceChg > 0 {
+			label = 1 // 微涨归入涨
 		}
+		// priceChg == 0 或极小负值保持 0
 
 		features = append(features, model.Feature{
 			Time:     window[len(window)-1].EndTime,
